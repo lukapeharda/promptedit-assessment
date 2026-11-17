@@ -41,7 +41,8 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => env('APP_URL').'/storage',
+            // Root-relative so images load on any host (localhost, Herd, a tunnel).
+            'url' => '/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

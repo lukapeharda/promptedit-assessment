@@ -69,7 +69,7 @@ class SubmitGeneration implements ShouldQueue
             return;
         }
 
-        $delay = $this->backoff($e, $generation->submit_attempts);
+        $delay = $this->retryDelay($e, $generation->submit_attempts);
 
         if (now()->addSeconds($delay)->greaterThan($this->retryUntil())) {
             // A connection error leaves the outcome unknown: Pixelforge may
@@ -87,7 +87,7 @@ class SubmitGeneration implements ShouldQueue
     }
 
     /** Honour Retry-After, back off exponentially, add jitter, cap at a minute. */
-    private function backoff(PixelforgeException $e, int $attempt): int
+    private function retryDelay(PixelforgeException $e, int $attempt): int
     {
         $exponential = min(60, 2 ** min($attempt, 6));
 
