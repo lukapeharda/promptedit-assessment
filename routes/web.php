@@ -4,11 +4,9 @@ use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\CreditController;
 use App\Http\Controllers\GenerationController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-Route::get('/', function () {
-    return Inertia::render('Welcome');
-})->name('home');
+// No marketing page: guests sign in, signed-in users go straight to the app.
+Route::get('/', fn () => auth()->check() ? to_route('dashboard') : to_route('login'))->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // The starter kit redirects here after login; the generator is the home screen.
