@@ -2,22 +2,22 @@
 
 namespace Database\Seeders;
 
+use App\Billing\Ledger;
 use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Pixelforge\Money;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $admin = User::factory()->create([
+            'name' => 'Operator',
+            'email' => env('ADMIN_EMAIL', 'admin@example.com'),
+            'password' => env('ADMIN_PASSWORD', 'password'),
+            'is_admin' => true,
         ]);
+
+        app(Ledger::class)->purchase($admin, 10 * Money::NANOS_PER_DOLLAR, 'Starting credits');
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Billing\Ledger;
+use App\Pixelforge\Money;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -44,6 +46,12 @@ class HandleInertiaRequests extends Middleware
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => $request->user(),
+                'is_admin' => (bool) $request->user()?->is_admin,
+            ],
+            // Lazily evaluated so partial reloads can refresh it.
+            'balance' => fn () => $request->user() ? Money::format(app(Ledger::class)->balance($request->user())) : null,
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
             ],
         ]);
     }

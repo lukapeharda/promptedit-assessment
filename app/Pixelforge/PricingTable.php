@@ -53,6 +53,6 @@ final readonly class PricingTable
     /** @return list<string> */
     public function sizes(): array
     {
-        return array_keys(reset($this->outputTokens) ?: []);
+        return array_keys(array_values($this->outputTokens)[0] ?? []);
     }
 }
