@@ -122,6 +122,20 @@ Webhooks need a public URL. Use a tunnel such as `herd share`, Expose, ngrok or 
 | `PIXELFORGE_IMAGE_DISK` | filesystem disk for copied images (`public` locally, an S3/R2 bucket in production) |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | seeded operator account |
 
+### Deploying (Laravel Cloud)
+
+Servers on Laravel Cloud don't share a disk: the queue worker that copies an image and the web server that serves it are
+separate machines, and their local files are lost on each deploy. So images must go to a bucket:
+
+1. Create an object storage bucket with **public** visibility and attach it to the environment. Cloud then sets the `AWS_*`
+   variables.
+2. Set `PIXELFORGE_IMAGE_DISK=s3` and redeploy.
+3. Run `php artisan pixelforge:copy-missing-images` to copy images saved before the bucket existed. This only works within
+   24 hours of each image's completion, while Pixelforge's link is still valid. Older images are marked as expired.
+
+Also enable a queue worker and the scheduler, run `php artisan migrate --force` and `php artisan db:seed --force`, and point
+the production Pixelforge key's webhook at `https://<app>/webhooks/pixelforge`.
+
 ## Tests
 
 ```bash

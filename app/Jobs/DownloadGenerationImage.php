@@ -38,7 +38,11 @@ class DownloadGenerationImage implements ShouldQueue
         $response = Http::timeout(30)->get($generation->image_url)->throw();
 
         $path = "generations/{$generation->user_id}/{$generation->pixelforge_id}.png";
-        Storage::disk(config('services.pixelforge.image_disk'))->put($path, $response->body());
+        // The disks are configured not to throw, so check the result: a failed
+        // upload must retry, not leave a path that points at nothing.
+        if (! Storage::disk(config('services.pixelforge.image_disk'))->put($path, $response->body())) {
+            throw new \RuntimeException("Could not store the image for generation {$generation->id}.");
+        }
 
         $generation->update(['image_path' => $path]);
     }
