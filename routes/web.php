@@ -18,6 +18,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('generate/estimate', [GenerationController::class, 'estimate'])->name('generations.estimate');
     Route::post('generations', [GenerationController::class, 'store'])->name('generations.store');
     Route::get('generations', [GenerationController::class, 'index'])->name('generations.index');
+    Route::post('generations/{generation}/retry', [GenerationController::class, 'retry'])->name('generations.retry');
 
     Route::get('credits', [CreditController::class, 'index'])->name('credits.index');
     Route::post('credits', [CreditController::class, 'store'])->name('credits.store');

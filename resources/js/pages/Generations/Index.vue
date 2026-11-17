@@ -3,11 +3,21 @@ import StatusBadge from '@/components/StatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem, Generation, ResourcePage } from '@/types';
-import { Head, Link, usePoll } from '@inertiajs/vue3';
-import { AlertTriangle, ImageOff, Loader2, Sparkles } from 'lucide-vue-next';
-import { computed, watch } from 'vue';
+import { Head, Link, router, usePage, usePoll } from '@inertiajs/vue3';
+import { AlertTriangle, ImageOff, Loader2, RotateCcw, Sparkles } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{ generations: ResourcePage<Generation> }>();
+
+const page = usePage();
+const errors = computed(() => Object.values(page.props.errors ?? {}) as string[]);
+
+// A retry is a new generation with the same settings; the failed one stays as a free attempt.
+const retrying = ref<number | null>(null);
+const retry = (generation: Generation) => {
+    retrying.value = generation.id;
+    router.post(route('generations.retry', generation.id), {}, { preserveScroll: true, onFinish: () => (retrying.value = null) });
+};
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'History', href: route('generations.index') }];
 
@@ -30,6 +40,16 @@ const formatTime = (iso: string) =>
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="mx-auto w-full max-w-6xl space-y-4 p-4">
+            <div
+                v-for="message in errors"
+                :key="message"
+                role="alert"
+                class="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+            >
+                <AlertTriangle class="size-4 shrink-0" />
+                <span>{{ message }}</span>
+                <Link v-if="message.includes('Buy credits')" :href="route('credits.index')" class="ml-auto shrink-0 font-medium underline">Buy credits</Link>
+            </div>
             <div v-if="generations.data.length === 0" class="flex flex-col items-center gap-4 rounded-xl border border-dashed p-12 text-center">
                 <p class="text-muted-foreground">No images yet.</p>
                 <Button as-child>
@@ -50,6 +70,11 @@ const formatTime = (iso: string) =>
                         <div v-else-if="generation.status === 'failed'" class="flex flex-col items-center gap-2 p-4 text-center text-sm text-red-700 dark:text-red-400">
                             <AlertTriangle class="size-6" />
                             {{ generation.error_message }}
+                            <Button variant="outline" size="sm" class="mt-1 text-foreground" :disabled="retrying !== null" @click="retry(generation)">
+                                <Loader2 v-if="retrying === generation.id" class="animate-spin" />
+                                <RotateCcw v-else />
+                                Try again
+                            </Button>
                         </div>
                         <div v-else-if="generation.image_expired" class="flex flex-col items-center gap-2 text-sm text-muted-foreground">
                             <ImageOff class="size-6" />

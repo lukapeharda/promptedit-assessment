@@ -98,6 +98,53 @@ class PagesTest extends TestCase
             ->where('generations.data.0.image', 'https://pixelforge.test/x.png'));
     }
 
+    public function test_retrying_a_failed_generation_starts_a_new_one_with_the_same_settings(): void
+    {
+        $failed = Generation::factory()->for($this->user)->accepted('failed')->create([
+            'prompt' => '[fail] A robot', 'size' => '1536x1024', 'quality' => 'low',
+            'reference_images' => ['https://example.com/a.png'], 'error_code' => 'internal_error', 'user_charge' => 0,
+        ]);
+
+        $this->actingAs($this->user)->post("/generations/{$failed->id}/retry")
+            ->assertRedirect('/generations')
+            ->assertSessionHas('success');
+
+        $retry = $this->user->generations()->whereKeyNot($failed->id)->sole();
+        $this->assertSame(['[fail] A robot', '1536x1024', 'low', ['https://example.com/a.png']], [$retry->prompt, $retry->size, $retry->quality, $retry->reference_images]);
+        $this->assertSame(GenerationStatus::Pending, $retry->status);
+        $this->assertNotSame($failed->idempotency_key, $retry->idempotency_key);
+        $this->assertSame(GenerationStatus::Failed, $failed->fresh()->status);
+        $this->assertSame(1_000_000_000 - $retry->hold_amount, app(Ledger::class)->balance($this->user));
+        Queue::assertPushed(SubmitGeneration::class, fn ($job) => $job->generation->id === $retry->id);
+    }
+
+    public function test_only_failed_generations_can_be_retried(): void
+    {
+        $succeeded = Generation::factory()->for($this->user)->accepted('succeeded')->create();
+
+        $this->actingAs($this->user)->post("/generations/{$succeeded->id}/retry")->assertSessionHasErrors('retry');
+
+        $this->assertSame(1, $this->user->generations()->count());
+    }
+
+    public function test_users_cannot_retry_someone_elses_generation(): void
+    {
+        $other = Generation::factory()->accepted('failed')->create();
+
+        $this->actingAs($this->user)->post("/generations/{$other->id}/retry")->assertNotFound();
+    }
+
+    public function test_a_retry_is_refused_without_enough_credits(): void
+    {
+        $poor = User::factory()->create();
+        $failed = Generation::factory()->for($poor)->accepted('failed')->create();
+
+        $this->actingAs($poor)->post("/generations/{$failed->id}/retry")->assertSessionHasErrors('balance');
+
+        $this->assertSame(1, $poor->generations()->count());
+        Queue::assertNothingPushed();
+    }
+
     public function test_users_only_see_their_own_generations(): void
     {
         Generation::factory()->create();

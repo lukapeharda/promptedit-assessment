@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateGeneration;
 use App\Billing\Ledger;
+use App\Enums\GenerationStatus;
+use App\Models\Generation;
 use App\Pixelforge\Money;
 use App\Http\Requests\GenerationRequest;
 use App\Http\Resources\GenerationResource;
@@ -54,6 +56,30 @@ class GenerationController extends Controller
         $createGeneration->handle($request->user(), $request->validated());
 
         return to_route('generations.index')->with('success', 'Your image is queued. You will only be charged if it succeeds.');
+    }
+
+    /**
+     * "Try again" on a failed generation. The failed one is final (free, hold
+     * released), so this starts a new generation with the same settings and
+     * a new idempotency key, priced and balance-checked like any other.
+     */
+    public function retry(Request $request, Generation $generation, CreateGeneration $createGeneration): RedirectResponse
+    {
+        // 404 rather than 403, so other users' ids are not revealed.
+        abort_unless($generation->user_id === $request->user()->id, 404);
+
+        if ($generation->status !== GenerationStatus::Failed) {
+            return back()->withErrors(['retry' => 'Only failed images can be retried.']);
+        }
+
+        $createGeneration->handle($request->user(), [
+            'prompt' => $generation->prompt,
+            'size' => $generation->size,
+            'quality' => $generation->quality,
+            'reference_images' => $generation->reference_images ?? [],
+        ]);
+
+        return to_route('generations.index')->with('success', 'Trying again with the same settings. You will only be charged if it succeeds.');
     }
 
     public function index(Request $request): Response
