@@ -95,6 +95,9 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => 'prefer',
+            // Laravel writes timestamps without an offset; the session must be
+            // UTC or timestamptz values shift (and land on the wrong billing day).
+            'timezone' => 'UTC',
         ],
 
         'sqlsrv' => [

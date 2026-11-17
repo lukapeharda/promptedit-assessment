@@ -59,7 +59,7 @@ class PixelforgeException extends RuntimeException
             'validation_failed' => 'Pixelforge rejected the request: '.$this->getMessage(),
             'daily_limit_exceeded' => 'The daily generation limit has been reached. Please try again tomorrow.',
             'rate_limit_exceeded', 'concurrency_limit_exceeded' => 'Pixelforge is busy right now and we could not submit your image after several attempts.',
-            'overloaded', 'server_error', 'connection_error' => 'Pixelforge is temporarily unavailable and we could not submit your image after several attempts.',
+            'overloaded', 'server_error', 'connection_error', 'submission_abandoned' => 'Pixelforge is temporarily unavailable and we could not submit your image after several attempts.',
             default => 'Pixelforge could not accept this request.',
         };
     }
