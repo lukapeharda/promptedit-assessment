@@ -34,6 +34,8 @@ return [
         'webhook_secret' => env('PIXELFORGE_WEBHOOK_SECRET'),
         'webhook_tolerance' => (int) env('PIXELFORGE_WEBHOOK_TOLERANCE', 300),
         'timeout' => (int) env('PIXELFORGE_TIMEOUT', 15),
+        // Where finished images are copied to (Pixelforge URLs expire after 24h).
+        'image_disk' => env('PIXELFORGE_IMAGE_DISK', 'public'),
     ],
 
     'slack' => [
