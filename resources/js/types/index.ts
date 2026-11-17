@@ -55,6 +55,9 @@ export interface Generation {
     status: GenerationStatus;
     is_final: boolean;
     error_message: string | null;
+    is_retry: boolean;
+    retried_status: GenerationStatus | null;
+    can_retry: boolean;
     estimate: { min: string; expected: string; max: string };
     charge: string | null;
     tokens: { input_text: number; input_image: number; output: number; reasoning: number } | null;

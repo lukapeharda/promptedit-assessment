@@ -30,7 +30,7 @@ class CreateGeneration
     /**
      * @param  array{prompt: string, size: string, quality: string, reference_images?: list<string>}  $input
      */
-    public function handle(User $user, array $input): Generation
+    public function handle(User $user, array $input, ?Generation $retryOf = null): Generation
     {
         $referenceImages = array_values($input['reference_images'] ?? []);
 
@@ -42,8 +42,13 @@ class CreateGeneration
             count($referenceImages),
         );
 
-        $generation = DB::transaction(function () use ($user, $input, $referenceImages, $estimate) {
+        $generation = DB::transaction(function () use ($user, $input, $referenceImages, $estimate, $retryOf) {
+            // Locks the user row, so two clicks on "Try again" are handled one after the other.
             $balance = $this->ledger->lockedBalance($user);
+
+            if ($retryOf !== null && ! $retryOf->fresh()->canBeRetried()) {
+                throw ValidationException::withMessages(['retry' => 'This image has already been retried.']);
+            }
 
             if ($balance < $estimate->maxCharge()) {
                 throw ValidationException::withMessages([
@@ -56,6 +61,7 @@ class CreateGeneration
             }
 
             $generation = $user->generations()->create([
+                'retry_of_id' => $retryOf?->id,
                 'idempotency_key' => (string) Str::uuid(),
                 'prompt' => $input['prompt'],
                 'size' => $input['size'],

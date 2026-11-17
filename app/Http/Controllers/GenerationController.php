@@ -77,14 +77,14 @@ class GenerationController extends Controller
             'size' => $generation->size,
             'quality' => $generation->quality,
             'reference_images' => $generation->reference_images ?? [],
-        ]);
+        ], retryOf: $generation);
 
         return to_route('generations.index')->with('success', 'Trying again with the same settings. You will only be charged if it succeeds.');
     }
 
     public function index(Request $request): Response
     {
-        $generations = $request->user()->generations()->latest('id')->paginate(12);
+        $generations = $request->user()->generations()->with('retry:id,retry_of_id,status')->latest('id')->paginate(12);
 
         return Inertia::render('Generations/Index', [
             'generations' => GenerationResource::collection($generations),

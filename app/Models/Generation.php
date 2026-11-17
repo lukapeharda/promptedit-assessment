@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Generation extends Model
 {
@@ -45,6 +46,18 @@ class Generation extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** The generation that retried this one, if any. */
+    public function retry(): HasOne
+    {
+        return $this->hasOne(Generation::class, 'retry_of_id');
+    }
+
+    /** A failed generation can be retried once; a failed retry can then be retried in turn. */
+    public function canBeRetried(): bool
+    {
+        return $this->status === GenerationStatus::Failed && ! $this->retry()->exists();
     }
 
     /** @return HasMany<CreditTransaction, $this> */

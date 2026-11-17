@@ -14,6 +14,13 @@ const errors = computed(() => Object.values(page.props.errors ?? {}) as string[]
 
 // A retry is a new generation with the same settings; the failed one stays as a free attempt.
 const retrying = ref<number | null>(null);
+const retriedLabel: Record<string, string> = {
+    pending: 'in progress',
+    queued: 'in progress',
+    processing: 'in progress',
+    succeeded: 'succeeded',
+    failed: 'also failed',
+};
 const retry = (generation: Generation) => {
     retrying.value = generation.id;
     router.post(route('generations.retry', generation.id), {}, { preserveScroll: true, onFinish: () => (retrying.value = null) });
@@ -70,7 +77,17 @@ const formatTime = (iso: string) =>
                         <div v-else-if="generation.status === 'failed'" class="flex flex-col items-center gap-2 p-4 text-center text-sm text-red-700 dark:text-red-400">
                             <AlertTriangle class="size-6" />
                             {{ generation.error_message }}
-                            <Button variant="outline" size="sm" class="mt-1 text-foreground" :disabled="retrying !== null" @click="retry(generation)">
+                            <span v-if="generation.retried_status" class="mt-1 text-xs text-muted-foreground">
+                                Retried · {{ retriedLabel[generation.retried_status] }}
+                            </span>
+                            <Button
+                                v-else-if="generation.can_retry"
+                                variant="outline"
+                                size="sm"
+                                class="mt-1 text-foreground"
+                                :disabled="retrying !== null"
+                                @click="retry(generation)"
+                            >
                                 <Loader2 v-if="retrying === generation.id" class="animate-spin" />
                                 <RotateCcw v-else />
                                 Try again
@@ -88,7 +105,10 @@ const formatTime = (iso: string) =>
 
                     <div class="flex flex-1 flex-col gap-3 p-4">
                         <div class="flex items-start justify-between gap-2">
-                            <StatusBadge :status="generation.status" />
+                            <span class="flex items-center gap-1.5">
+                                <StatusBadge :status="generation.status" />
+                                <span v-if="generation.is_retry" class="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">Retry</span>
+                            </span>
                             <time class="text-xs text-muted-foreground" :datetime="generation.created_at">{{ formatTime(generation.created_at) }}</time>
                         </div>
 

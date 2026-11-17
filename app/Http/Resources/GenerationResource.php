@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\GenerationStatus;
 use App\Models\Generation;
 use App\Pixelforge\Money;
 use Illuminate\Http\Request;
@@ -22,6 +23,9 @@ class GenerationResource extends JsonResource
             'status' => $this->status->value,
             'is_final' => $this->status->isTerminal(),
             'error_message' => $this->error_message,
+            'is_retry' => $this->retry_of_id !== null,
+            'retried_status' => $this->retry?->status->value,
+            'can_retry' => $this->status === GenerationStatus::Failed && $this->retry === null,
             'estimate' => [
                 'min' => Money::format($this->estimated_min_charge),
                 'expected' => Money::format($this->estimated_charge),

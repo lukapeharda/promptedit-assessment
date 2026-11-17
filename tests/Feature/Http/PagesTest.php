@@ -118,6 +118,33 @@ class PagesTest extends TestCase
         Queue::assertPushed(SubmitGeneration::class, fn ($job) => $job->generation->id === $retry->id);
     }
 
+    public function test_a_failed_generation_can_only_be_retried_once(): void
+    {
+        $failed = Generation::factory()->for($this->user)->accepted('failed')->create();
+
+        $this->actingAs($this->user)->post("/generations/{$failed->id}/retry")->assertRedirect('/generations');
+        $this->actingAs($this->user)->post("/generations/{$failed->id}/retry")->assertSessionHasErrors('retry');
+
+        $this->assertSame(2, $this->user->generations()->count());
+        Queue::assertPushedTimes(SubmitGeneration::class, 1);
+
+        $this->actingAs($this->user)->get('/generations')->assertInertia(fn (Assert $page) => $page
+            ->where('generations.data.0.is_retry', true)
+            ->where('generations.data.1.can_retry', false)
+            ->where('generations.data.1.retried_status', 'pending'));
+    }
+
+    public function test_a_failed_retry_can_itself_be_retried(): void
+    {
+        $failed = Generation::factory()->for($this->user)->accepted('failed')->create();
+        $failedRetry = Generation::factory()->for($this->user)->accepted('failed')->create(['retry_of_id' => $failed->id]);
+
+        $this->actingAs($this->user)->post("/generations/{$failed->id}/retry")->assertSessionHasErrors('retry');
+        $this->actingAs($this->user)->post("/generations/{$failedRetry->id}/retry")->assertRedirect('/generations');
+
+        $this->assertSame($failedRetry->id, $this->user->generations()->latest('id')->first()->retry_of_id);
+    }
+
     public function test_only_failed_generations_can_be_retried(): void
     {
         $succeeded = Generation::factory()->for($this->user)->accepted('succeeded')->create();
