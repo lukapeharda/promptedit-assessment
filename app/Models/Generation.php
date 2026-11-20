@@ -54,10 +54,42 @@ class Generation extends Model
         return $this->hasOne(Generation::class, 'retry_of_id');
     }
 
-    /** A failed generation can be retried once; a failed retry can then be retried in turn. */
+    /**
+     * Failures outside the user's control, where the same request can succeed
+     * later: a fault on Pixelforge's side, or capacity we couldn't get.
+     * Everything else is about the request itself (content policy, a prompt
+     * the model can't draw, invalid input) and needs the prompt changed.
+     */
+    public const TRANSIENT_FAILURES = [
+        'internal_error',
+        'overloaded',
+        'server_error',
+        'connection_error',
+        'rate_limit_exceeded',
+        'concurrency_limit_exceeded',
+        'submission_abandoned',
+        'daily_limit_exceeded',
+    ];
+
+    /** Whether trying the same request again can succeed. */
+    public function failedTransiently(): bool
+    {
+        if ($this->status !== GenerationStatus::Failed || ! in_array($this->error_code, self::TRANSIENT_FAILURES, true)) {
+            return false;
+        }
+
+        // The daily quota resets at midnight UTC; retrying the same day would fail again.
+        if ($this->error_code === 'daily_limit_exceeded') {
+            return ($this->completed_at ?? $this->updated_at)->utc()->toDateString() < now()->utc()->toDateString();
+        }
+
+        return true;
+    }
+
+    /** A transient failure can be retried once; a failed retry can then be retried in turn. */
     public function canBeRetried(): bool
     {
-        return $this->status === GenerationStatus::Failed && ! $this->retry()->exists();
+        return $this->failedTransiently() && ! $this->retry()->exists();
     }
 
     /** @return HasMany<CreditTransaction, $this> */

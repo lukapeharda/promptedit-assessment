@@ -12,6 +12,7 @@ import { Info, Loader2, Plus, Sparkles, X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{
+    prefill: { prompt: string; size: string; quality: string; reference_images: string[] } | null;
     sizes: string[];
     qualities: string[];
     maxPromptLength: number;
@@ -20,11 +21,17 @@ const props = defineProps<{
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Generate', href: route('generations.create') }];
 
+// Settings carried over from History are kept only if Pixelforge still offers them.
 const form = useForm({
-    prompt: '',
-    size: props.sizes[0] ?? '1024x1024',
-    quality: props.qualities.includes('medium') ? 'medium' : props.qualities[0],
-    reference_images: [] as string[],
+    prompt: props.prefill?.prompt ?? '',
+    size: props.prefill && props.sizes.includes(props.prefill.size) ? props.prefill.size : (props.sizes[0] ?? '1024x1024'),
+    quality:
+        props.prefill && props.qualities.includes(props.prefill.quality)
+            ? props.prefill.quality
+            : props.qualities.includes('medium')
+              ? 'medium'
+              : props.qualities[0],
+    reference_images: [...(props.prefill?.reference_images ?? [])].slice(0, props.maxReferenceImages),
 });
 
 const estimate = ref<Estimate | null>(null);

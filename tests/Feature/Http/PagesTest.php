@@ -120,7 +120,7 @@ class PagesTest extends TestCase
 
     public function test_a_failed_generation_can_only_be_retried_once(): void
     {
-        $failed = Generation::factory()->for($this->user)->accepted('failed')->create();
+        $failed = Generation::factory()->for($this->user)->accepted('failed')->create(['error_code' => 'internal_error']);
 
         $this->actingAs($this->user)->post("/generations/{$failed->id}/retry")->assertRedirect('/generations');
         $this->actingAs($this->user)->post("/generations/{$failed->id}/retry")->assertSessionHasErrors('retry');
@@ -136,8 +136,8 @@ class PagesTest extends TestCase
 
     public function test_a_failed_retry_can_itself_be_retried(): void
     {
-        $failed = Generation::factory()->for($this->user)->accepted('failed')->create();
-        $failedRetry = Generation::factory()->for($this->user)->accepted('failed')->create(['retry_of_id' => $failed->id]);
+        $failed = Generation::factory()->for($this->user)->accepted('failed')->create(['error_code' => 'internal_error']);
+        $failedRetry = Generation::factory()->for($this->user)->accepted('failed')->create(['retry_of_id' => $failed->id, 'error_code' => 'internal_error']);
 
         $this->actingAs($this->user)->post("/generations/{$failed->id}/retry")->assertSessionHasErrors('retry');
         $this->actingAs($this->user)->post("/generations/{$failedRetry->id}/retry")->assertRedirect('/generations');
@@ -156,7 +156,7 @@ class PagesTest extends TestCase
 
     public function test_users_cannot_retry_someone_elses_generation(): void
     {
-        $other = Generation::factory()->accepted('failed')->create();
+        $other = Generation::factory()->accepted('failed')->create(['error_code' => 'internal_error']);
 
         $this->actingAs($this->user)->post("/generations/{$other->id}/retry")->assertNotFound();
     }
@@ -164,12 +164,58 @@ class PagesTest extends TestCase
     public function test_a_retry_is_refused_without_enough_credits(): void
     {
         $poor = User::factory()->create();
-        $failed = Generation::factory()->for($poor)->accepted('failed')->create();
+        $failed = Generation::factory()->for($poor)->accepted('failed')->create(['error_code' => 'overloaded']);
 
         $this->actingAs($poor)->post("/generations/{$failed->id}/retry")->assertSessionHasErrors('balance');
 
         $this->assertSame(1, $poor->generations()->count());
         Queue::assertNothingPushed();
+    }
+
+    public function test_failures_caused_by_the_request_cannot_be_retried_as_they_are(): void
+    {
+        foreach (['content_policy_violation', 'generation_failed', 'validation_failed'] as $code) {
+            $failed = Generation::factory()->for($this->user)->accepted('failed')->create(['error_code' => $code]);
+
+            $this->actingAs($this->user)->post("/generations/{$failed->id}/retry")->assertSessionHasErrors('retry');
+        }
+
+        $this->assertSame(3, $this->user->generations()->count());
+        $this->actingAs($this->user)->get('/generations')->assertInertia(fn (Assert $page) => $page
+            ->where('generations.data.0.can_retry', false)
+            ->where('generations.data.1.can_retry', false)
+            ->where('generations.data.2.can_retry', false));
+    }
+
+    public function test_a_daily_limit_failure_can_be_retried_once_the_utc_day_has_reset(): void
+    {
+        $this->travelTo('2026-11-20 23:00:00');
+        $failed = Generation::factory()->for($this->user)->accepted('failed')->create(['error_code' => 'daily_limit_exceeded', 'completed_at' => now()]);
+
+        $this->assertFalse($failed->fresh()->canBeRetried());
+
+        $this->travelTo('2026-11-21 00:00:01');
+        $this->assertTrue($failed->fresh()->canBeRetried());
+    }
+
+    public function test_the_generate_form_can_start_from_a_previous_generation(): void
+    {
+        $previous = Generation::factory()->for($this->user)->accepted('failed')->create([
+            'prompt' => '[blocked] Something', 'size' => '1536x1024', 'quality' => 'high', 'reference_images' => ['https://example.com/a.png'],
+        ]);
+
+        $this->actingAs($this->user)->get("/generate?from={$previous->id}")->assertInertia(fn (Assert $page) => $page
+            ->where('prefill.prompt', '[blocked] Something')
+            ->where('prefill.size', '1536x1024')
+            ->where('prefill.quality', 'high')
+            ->where('prefill.reference_images', ['https://example.com/a.png']));
+    }
+
+    public function test_the_generate_form_cannot_start_from_someone_elses_generation(): void
+    {
+        $other = Generation::factory()->create(['prompt' => 'Private prompt']);
+
+        $this->actingAs($this->user)->get("/generate?from={$other->id}")->assertInertia(fn (Assert $page) => $page->where('prefill', null));
     }
 
     public function test_users_only_see_their_own_generations(): void

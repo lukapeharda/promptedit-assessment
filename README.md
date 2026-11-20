@@ -60,6 +60,15 @@ attempt. A retry after a timeout or lost response returns the original generatio
 | connection error / 5xx | retry. If still failing, leave it pending: the outcome is unknown, and the reconciler replays the same key to find out |
 | `400 content_policy_violation`, `422`, `daily_limit_exceeded` | fail it immediately for free, with a readable reason |
 
+**Trying again** after a generation failed depends on whose fault it was (`Generation::TRANSIENT_FAILURES`):
+
+- **Outside the user's control:** `internal_error` (Pixelforge's docs say a retry usually works), `overloaded`, rate and
+  concurrency limits, connection and server errors, and abandoned submissions. These get a **Try again** button that resubmits
+  the same request, once per failed attempt. `daily_limit_exceeded` is offered only after the quota resets at midnight UTC.
+- **Caused by the request:** `content_policy_violation`, `generation_failed` (the model couldn't draw this prompt) and
+  `validation_failed`. The same request would fail again, so these get **Edit prompt** instead. It opens the Generate page with
+  the same settings, which every History card also offers as **Use these settings**.
+
 **Webhooks** (`POST /webhooks/pixelforge`):
 
 - `VerifyPixelforgeSignature` checks `HMAC-SHA256("<t>.<raw body>")` against the key's `whsec_` secret in constant time, and

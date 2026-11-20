@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateGeneration;
 use App\Billing\Ledger;
-use App\Enums\GenerationStatus;
 use App\Models\Generation;
 use App\Pixelforge\Money;
 use App\Http\Requests\GenerationRequest;
@@ -19,11 +18,22 @@ use Inertia\Response;
 
 class GenerationController extends Controller
 {
-    public function create(PixelforgeClient $pixelforge): Response
+    public function create(Request $request, PixelforgeClient $pixelforge): Response
     {
         $pricing = $pixelforge->pricing();
 
+        // "Use these settings" from History: start from one of the user's own generations.
+        $from = $request->integer('from')
+            ? $request->user()->generations()->find($request->integer('from'))
+            : null;
+
         return Inertia::render('Generations/Create', [
+            'prefill' => $from ? [
+                'prompt' => $from->prompt,
+                'size' => $from->size,
+                'quality' => $from->quality,
+                'reference_images' => $from->reference_images ?? [],
+            ] : null,
             'sizes' => $pricing->sizes(),
             'qualities' => $pricing->qualities(),
             'maxPromptLength' => GenerationRequest::MAX_PROMPT_LENGTH,
@@ -68,8 +78,8 @@ class GenerationController extends Controller
         // 404 rather than 403, so other users' ids are not revealed.
         abort_unless($generation->user_id === $request->user()->id, 404);
 
-        if ($generation->status !== GenerationStatus::Failed) {
-            return back()->withErrors(['retry' => 'Only failed images can be retried.']);
+        if (! $generation->failedTransiently()) {
+            return back()->withErrors(['retry' => 'Only images that failed on Pixelforge\'s side can be tried again as they are. Change the prompt with "Use these settings" instead.']);
         }
 
         $createGeneration->handle($request->user(), [

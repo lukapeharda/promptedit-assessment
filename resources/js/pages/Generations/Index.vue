@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem, Generation, ResourcePage } from '@/types';
 import { Head, Link, router, usePage, usePoll } from '@inertiajs/vue3';
-import { AlertTriangle, ImageOff, Loader2, RotateCcw, Sparkles } from 'lucide-vue-next';
+import { AlertTriangle, Copy, ImageOff, Loader2, Pencil, RotateCcw, Sparkles } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{ generations: ResourcePage<Generation> }>();
@@ -13,6 +13,7 @@ const page = usePage();
 const errors = computed(() => Object.values(page.props.errors ?? {}) as string[]);
 
 // A retry is a new generation with the same settings; the failed one stays as a free attempt.
+// Only offered when the failure was outside the user's control (server decides: can_retry).
 const retrying = ref<number | null>(null);
 const retriedLabel: Record<string, string> = {
     pending: 'in progress',
@@ -92,6 +93,10 @@ const formatTime = (iso: string) =>
                                 <RotateCcw v-else />
                                 Try again
                             </Button>
+                            <!-- The request itself was the problem (e.g. content policy): retrying as-is would fail again. -->
+                            <Button v-else variant="outline" size="sm" class="mt-1 text-foreground" as-child>
+                                <Link :href="route('generations.create', { from: generation.id })"><Pencil /> Edit prompt</Link>
+                            </Button>
                         </div>
                         <div v-else-if="generation.image_expired" class="flex flex-col items-center gap-2 text-sm text-muted-foreground">
                             <ImageOff class="size-6" />
@@ -132,6 +137,13 @@ const formatTime = (iso: string) =>
                                 <span v-else class="font-normal text-muted-foreground">up to {{ generation.estimate.max }} reserved</span>
                             </dd>
                         </dl>
+
+                        <Link
+                            :href="route('generations.create', { from: generation.id })"
+                            class="flex items-center gap-1.5 self-start text-xs font-medium text-muted-foreground hover:text-foreground"
+                        >
+                            <Copy class="size-3.5" /> Use these settings
+                        </Link>
 
                         <details v-if="generation.tokens" class="text-xs text-muted-foreground">
                             <summary class="cursor-pointer">Token usage</summary>
